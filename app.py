@@ -1,67 +1,117 @@
-from dotenv import load_dotenv
 import streamlit as st
-from langchain.vectorstores import Chroma
+from dotenv import load_dotenv
+from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.llms import OpenAI
-from langchain.chains import RetrievalQA
-from langchain.document_loaders import TextLoader
-from langchain.document_loaders import PyPDFLoader
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain
+from htmlTemplates import css, bot_template, user_template
+from langchain.llms import HuggingFaceHub
+from langchain.document_loaders import DirectoryLoader, PyPDFLoader
+import os 
 from langchain.document_loaders import DirectoryLoader
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain_community.chat_models import ChatOpenAI
-from langchain.embeddings import HuggingFaceInstructEmbeddings
-import textwrap
-
-def wrap_text_preserve_newlines(text, width=110):
-    # Split the input text into lines based on newline characters
-    lines = text.split('\n')
-
-    # Wrap each line individually
-    wrapped_lines = [textwrap.fill(line, width=width) for line in lines]
-
-    # Join the wrapped lines back together using newline characters
-    wrapped_text = '\n'.join(wrapped_lines)
-
-    return wrapped_text
-
-def process_llm_response(llm_response):
-    print(wrap_text_preserve_newlines(llm_response['result']))
-    print('\n\nSources:')
-    for source in llm_response["source_documents"]:
-        print(f"page number {source.metadata['page']}")
 
 
-def loadingTheFiles():
-    loader = DirectoryLoader('files/', glob="./*.pdf", loader_cls=PyPDFLoader)
+# def get_pdf_text(pdf_docs):
+#     text = ""
+#     for pdf in pdf_docs:
+#         pdf_reader = PdfReader(pdf)
+#         for page in pdf_reader.pages:
+#             text += page.extract_text()
+#     return text
 
-    documents = loader.load()
+
+def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = text_splitter.split_documents(documents)
+    texts = text_splitter.split_documents(text)
     return texts
+
+
+def get_vectorstore(text_chunks):
+    embeddings = OpenAIEmbeddings()
+    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+    vectorstore = FAISS.from_documents(documents=text_chunks, embedding=embeddings)
+    return vectorstore
+
+
+def get_conversation_chain(vectorstore):
+    llm = ChatOpenAI()
+    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
+
+    memory = ConversationBufferMemory(
+        memory_key='chat_history', return_messages=True)
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=vectorstore.as_retriever(),
+        memory=memory
+    )
+    return conversation_chain
+
+
+def handle_userinput(user_question):
+    response = st.session_state.conversation({'question': user_question})
+    st.session_state.chat_history = response['chat_history']
+
+    for i, message in enumerate(st.session_state.chat_history):
+        if i % 2 == 0:
+            st.write(user_template.replace(
+                "{{MSG}}", message.content), unsafe_allow_html=True)
+        else:
+            st.write(bot_template.replace(
+                "{{MSG}}", message.content), unsafe_allow_html=True)
+
 
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title="Ask your PDF")
-    st.header("Ask your PDF 💬")
-    llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+    st.set_page_config(page_title="CBAHI Consultant!",
+                       page_icon=":books:")
+    st.write(css, unsafe_allow_html=True)
 
-    instructor_embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl", 
-                                                      model_kwargs={"device": "cpu"})
-    embedding = instructor_embeddings
-    vectordb = Chroma(persist_directory='db', embedding_function=embedding)
-    vectordb.persist()
-    retriever = vectordb.as_retriever()
-    retriever = vectordb.as_retriever(search_kwargs={"k": 2})
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, 
-                                  chain_type="stuff", 
-                                  retriever=retriever, 
-                                  return_source_documents=True)
-    
-    query = st.text_input("Ask your question")
-    llm_response = qa_chain(query)
-    st.write(process_llm_response(llm_response))
-    
+    if "conversation" not in st.session_state:
+        st.session_state.conversation = None
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = None
+
+    st.header(" CBAHI Standards for Hospitals  :books:")
+    user_question = st.text_input("Ask a question about CBAHI :")
+    if user_question:
+        handle_userinput(user_question)
+
+    with st.sidebar:
+        st.subheader("CBAHI Files Standards :page_facing_up:")
+        # Writing your documents to the files folder
+        files = os.listdir('files/')
+        for file in files:
+            st.write(f" * :page_facing_up: {file}")
+            loader = DirectoryLoader('files/', glob="./*.pdf", loader_cls=PyPDFLoader)
+            documents = loader.load()
+            text_chunks = get_text_chunks(documents)
+            vectorstore = get_vectorstore(text_chunks)
+            st.session_state.conversation = get_conversation_chain(vectorstore)
+        
+        
+        
+        # pdf_docs = st.file_uploader(
+        #     "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
+        # if st.button("Process"):
+            
+            # with st.spinner("Processing"):
+            #     # get pdf text
+            #     raw_text = get_pdf_text(pdf_docs)
+
+            #     # get the text chunks
+            #     text_chunks = get_text_chunks(raw_text)
+
+            #     # create vector store
+            #     vectorstore = get_vectorstore(text_chunks)
+
+            #     # create conversation chain
+            #     st.session_state.conversation = get_conversation_chain(
+            #         vectorstore)
+
 
 if __name__ == '__main__':
     main()
