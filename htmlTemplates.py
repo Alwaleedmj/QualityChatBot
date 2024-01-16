@@ -31,7 +31,7 @@ bot_template = '''
 user_template = '''
 <div class="chat-message user"> 
     <div class="message">
-     <b>Heathcare Employee Question </b>
+     <b>Heathcare Employee Question: </b>
     <br>
     {{MSG}}</div>
 </div>

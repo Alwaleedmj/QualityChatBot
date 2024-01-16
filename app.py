@@ -66,52 +66,43 @@ def handle_userinput(user_question):
 
 def main():
     load_dotenv()
-    st.set_page_config(page_title="CBAHI Consultant!",
-                       page_icon=":books:")
+    st.set_page_config(page_title="CBAHI Consultant!", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
+    # Initialize session state variables if they don't exist
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
-
-    st.header(" CBAHI Standards for Hospitals  :books:")
-    user_question = st.text_input("Ask a question about CBAHI :")
-    if user_question:
-        handle_userinput(user_question)
+    if "processed" not in st.session_state:
+        st.session_state.processed = False  # Flag to check if documents are processed
 
     with st.sidebar:
         st.subheader("CBAHI Files Standards :page_facing_up:")
         # Writing your documents to the files folder
         files = os.listdir('files/')
         for file in files:
+            if ".DS_Store" in file:
+                continue
             st.write(f" * :page_facing_up: {file}")
-            loader = DirectoryLoader('files/', glob="./*.pdf", loader_cls=PyPDFLoader)
-            documents = loader.load()
-            text_chunks = get_text_chunks(documents)
-            vectorstore = get_vectorstore(text_chunks)
-            st.session_state.conversation = get_conversation_chain(vectorstore)
+
+    if not st.session_state.processed:
+            with st.spinner("Loading and processing documents..."):
+                loader = DirectoryLoader('files/', glob="./*.pdf", loader_cls=PyPDFLoader)
+                documents = loader.load()
+                text_chunks = get_text_chunks(documents)
+                vectorstore = get_vectorstore(text_chunks)
+                st.session_state.conversation = get_conversation_chain(vectorstore)
+                st.session_state.processed = True  # Set the flag to True after processing
+
+    
+    st.header("CBAHI Standards for Hospitals :books:")
+    user_question = st.text_input("Ask a question about CBAHI :")
+    if user_question:
+        handle_userinput(user_question)
+
+
+        # Load and process documents only if not already done
         
-        
-        
-        # pdf_docs = st.file_uploader(
-        #     "Upload your PDFs here and click on 'Process'", accept_multiple_files=True)
-        # if st.button("Process"):
-            
-            # with st.spinner("Processing"):
-            #     # get pdf text
-            #     raw_text = get_pdf_text(pdf_docs)
-
-            #     # get the text chunks
-            #     text_chunks = get_text_chunks(raw_text)
-
-            #     # create vector store
-            #     vectorstore = get_vectorstore(text_chunks)
-
-            #     # create conversation chain
-            #     st.session_state.conversation = get_conversation_chain(
-            #         vectorstore)
-
-
 if __name__ == '__main__':
     main()
