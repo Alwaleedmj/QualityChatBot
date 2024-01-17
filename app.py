@@ -65,7 +65,7 @@ def handle_userinput(user_question):
 
 
 def main():
-    load_dotenv()
+    os.environ["OPENAI_API_KEY"] = "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"
     st.set_page_config(page_title="CBAHI Consultant!", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
