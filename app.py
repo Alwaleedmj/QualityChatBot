@@ -11,6 +11,7 @@ from langchain.llms import HuggingFaceHub
 from langchain.document_loaders import DirectoryLoader, PyPDFLoader
 import os 
 from langchain.document_loaders import DirectoryLoader
+from dotenv import load_dotenv
 
 
 # def get_pdf_text(pdf_docs):
@@ -36,7 +37,7 @@ def get_vectorstore(text_chunks):
 
 
 def get_conversation_chain(vectorstore):
-    llm = ChatOpenAI(temperature=0.4)
+    llm = ChatOpenAI(temperature=0.6)
     # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
 
     memory = ConversationBufferMemory(
@@ -64,7 +65,7 @@ def handle_userinput(user_question):
 
 
 def main():
-    os.environ["OPENAI_API_KEY"] = "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"
+    load_dotenv()
     st.set_page_config(page_title="CBAHI Consultant!", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
