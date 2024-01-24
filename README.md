@@ -3,3 +3,5 @@
 
 Adding 
 chroma-migrate
+
+HUGGINGFACEHUB_API_TOKEN
